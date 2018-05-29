@@ -1,0 +1,13 @@
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\x86\Release\TestPlugin.csproj.CoreCompileInputs.cache
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\TestPlugin.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\TestPlugin.pdb
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\Newtonsoft.Json.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\OTAPI.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\TerrariaServer.exe
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\TShockAPI.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\HttpServer.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\MySql.Data.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\BCrypt.Net.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\Mono.Data.Sqlite.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\x86\Release\TestPlugin.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\x86\Release\TestPlugin.pdb
