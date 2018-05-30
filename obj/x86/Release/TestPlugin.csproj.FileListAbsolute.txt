@@ -11,3 +11,4 @@ C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\BCrypt.N
 C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\x86\Release\Mono.Data.Sqlite.dll
 C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\x86\Release\TestPlugin.dll
 C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\x86\Release\TestPlugin.pdb
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\x86\Release\TestPlugin.csprojResolveAssemblyReference.cache

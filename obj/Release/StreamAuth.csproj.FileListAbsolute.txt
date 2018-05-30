@@ -1,0 +1,14 @@
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\Release\StreamAuth.csprojResolveAssemblyReference.cache
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\Release\StreamAuth.csproj.CoreCompileInputs.cache
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\StreamAuth.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\StreamAuth.pdb
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\Newtonsoft.Json.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\OTAPI.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\TerrariaServer.exe
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\TShockAPI.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\HttpServer.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\MySql.Data.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\BCrypt.Net.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\Mono.Data.Sqlite.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\Release\StreamAuth.dll
+C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\obj\Release\StreamAuth.pdb

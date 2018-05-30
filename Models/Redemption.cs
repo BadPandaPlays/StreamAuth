@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace TestPlugin.Models
+namespace StreamAuth.Models
 {
     //http://json2csharp.com/#
     [JsonObject]
@@ -31,5 +31,10 @@ namespace TestPlugin.Models
     {
         public int _total { get; set; }
         public List<Doc> docs { get; set; }
+    }
+    [JsonObject]
+    public class complete
+    {
+        public bool Complete { get; set; }
     }
 }

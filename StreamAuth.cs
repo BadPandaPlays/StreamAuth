@@ -13,20 +13,20 @@ using Terraria.ID;
 using Newtonsoft.Json;
 using System.Text.RegularExpressions;
 
-namespace TestPlugin
+namespace StreamAuth
 {
     [ApiVersion(2, 1)]
-    public class TestPlugin : TerrariaPlugin
+    public class StreamAuth : TerrariaPlugin
     {
         public override string Author => "OneBadPanda";
-        public override string Description => "Connects StreamElements Points system to Terraria";
+        public override string Description => "Uses StreamElements Store to Create SSC Terraria Accounts";
         public override string Name => "StreamStore";
         public override Version Version
         {
             get { return new Version(1, 0, 0, 0); }
         }
 
-        public TestPlugin(Main game) : base(game)
+        public StreamAuth(Main game) : base(game)
         {
 
         }
@@ -71,36 +71,19 @@ namespace TestPlugin
 
         public void StreamElementsCheckJoinRedemptions(CommandArgs args)
         {
-            //string join = "5b089a3e0ddc666160efbfb7";
-            int limit =  40;
+            int limit = 40;
             bool pending = true;
             string queryParams = "?limit=" + limit + "&pending=" + pending;
-            Models.RootObject list = GetStoreRedemptions(args, queryParams, null);
-            if (list != null)
+            Models.RootObject list = GetStoreRedemptions(args, queryParams);
+            if (list.docs.Count == 0)
             {
-                // cast into JSon Object
-                if (list.ToString() == "Item Redeemed") { args.Player.SendInfoMessage("Join request has been handled."); }
-                //create account
-                else
-                {
-                    CreateAccount(list);
-                    Console.WriteLine(list + "Account was created");
-                };
-
-                
-                // https://www.newtonsoft.com/json/help/html/T_Newtonsoft_Json_Linq_JObject.htm
-                //grab list.next
-                //evaluate for join event
-                //make account
-                //mark redemption complete 
-                // make log message connecting twitch handle, to item redemption for lookup later.?
-
-                args.Player.SendInfoMessage(list.ToString());
+                args.Player.SendInfoMessage("There were no join requests.");
             }
+            //create account
             else
             {
-                args.Player.SendInfoMessage("Join list is empty");
-            }
+                CreateAccount(list);
+            };
         }
 
         public static void BuyItem(CommandArgs args)
@@ -207,20 +190,12 @@ namespace TestPlugin
             }
         }
         
-        public Models.RootObject GetStoreRedemptions(CommandArgs args, string queryParams, string itemID)
+        public Models.RootObject GetStoreRedemptions(CommandArgs args, string queryParams)
         {
             string jwtToken = Models.StreamElements.jwtToken;
             string channel = Models.StreamElements.channel;
-            if (queryParams == null)
-            { queryParams = "?completed=true"; }
-            else
-            {
-                queryParams += "&completed=true";
-            }
-
-            string urlAddress = "https://api.streamelements.com/kappa/v2/" + "store" + "/" + channel + "/" + "redemptions" + "/" + itemID + queryParams;
+            string urlAddress = "https://api.streamelements.com/kappa/v2/" + "store" + "/" + channel + "/" + "redemptions" + "/" + queryParams;
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(urlAddress);
-            Console.WriteLine(request.RequestUri);
             request.Headers["Authorization"] = ("Bearer " + jwtToken);
 
             ServicePointManager.ServerCertificateValidationCallback = MyRemoteCertificateValidationCallback;
@@ -229,7 +204,6 @@ namespace TestPlugin
             if (response.StatusCode == HttpStatusCode.OK)
             {
                 Models.RootObject data = ParseRootObjectFromStream(response.GetResponseStream());
-                Console.WriteLine(data.ToString());
                 response.Close();
                 return data;
             }
@@ -240,30 +214,6 @@ namespace TestPlugin
                 return null;
             }
 
-        }
-        public void MarkRedemptionComplete(string itemID)
-        {
-            string jwtToken = Models.StreamElements.jwtToken;
-            string channel = Models.StreamElements.channel;
-
-            string urlAddress = "https://api.streamelements.com/kappa/v2/" + "store" + "/" + channel + "/" + "redemptions" + "/" + itemID;
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(urlAddress);
-            request.Headers["Authorization"] = ("Bearer " + jwtToken);
-            ServicePointManager.ServerCertificateValidationCallback = MyRemoteCertificateValidationCallback;
-            // get
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            Models.Doc data;
-            if (response.StatusCode == HttpStatusCode.OK)
-            {
-                data = ParseDocObjectFromStream(response.GetResponseStream());
-                Console.WriteLine(data.ToString());
-                response.Close();
-                // change the completed value
-                data.completed = true;
-                var byteData = JsonStringToByteArray(data.ToString());
-                // put
-                using (var stream = request.GetRequestStream()) { stream.Write(byteData, 0, byteData.Length); }
-            }  
         }
 
         public void StreamElementsPointsRequest(CommandArgs args)
@@ -278,32 +228,19 @@ namespace TestPlugin
             string channel = Models.StreamElements.channel;
             string urlAddress = "https://api.streamelements.com/kappa/v2/" + "points" + "/" + channel + "/" + user;
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(urlAddress);
-            Console.WriteLine(request.RequestUri);
             request.Headers["Authorization"] = ("Bearer " + jwtToken);
-            string data = null;
             ServicePointManager.ServerCertificateValidationCallback = MyRemoteCertificateValidationCallback;
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
             if (response.StatusCode == HttpStatusCode.OK)
             {
                 Stream receiveStream = response.GetResponseStream();
-                StreamReader readStream = null;
-                if (response.CharacterSet == null)
-                {
-                    readStream = new StreamReader(receiveStream);
-                }
-                else
-                {
-                    readStream = new StreamReader(receiveStream, Encoding.GetEncoding(response.CharacterSet));
-                }
-                // Send Message to player
-                data = readStream.ReadToEnd();
+                var data = ParseObjectFromStream(receiveStream);
                 response.Close();
-                readStream.Close();
-
+                string message = data.username + " | Points: " + data.points + " | rank: " + data.rank;
+                args.Player.SendMessage(message, 255, 255, 255);
             }
-            args.Player.SendMessage(data, 255, 255, 255);
-
         }
+
         public static Models.RootObject ParseRootObjectFromStream(Stream stream)
         {
             string value;
@@ -311,20 +248,19 @@ namespace TestPlugin
             {
                 value = reader.ReadToEnd();
             }
-            Console.WriteLine(value);
             Models.RootObject RedepmtionList = JsonConvert.DeserializeObject<Models.RootObject>(value);
             return RedepmtionList;
         }
-        public static Models.Doc ParseDocObjectFromStream(Stream stream)
+
+        public static Models.Points.UserPoints ParseObjectFromStream(Stream stream)
         {
             string value;
             using (var reader = new StreamReader(stream, Encoding.UTF8))
             {
                 value = reader.ReadToEnd();
             }
-            Console.WriteLine(value);
-            Models.Doc RedepmtionList = JsonConvert.DeserializeObject<Models.Doc>(value);
-            return RedepmtionList;
+            var PointsObject = JsonConvert.DeserializeObject<Models.Points.UserPoints>(value);
+            return PointsObject;
         }
 
         private bool MyRemoteCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
@@ -351,6 +287,7 @@ namespace TestPlugin
             }
             return isOk;
         }
+
         public void CreateAccount(Models.RootObject a)
         {
             for (int i = 0; i < (a.docs.Count - 1); i++)
@@ -367,24 +304,23 @@ namespace TestPlugin
                     {
                         Console.WriteLine(account.Name +"User Does Not Exist");
                         //make the account
-                        TShock.Users.AddUser(account);
-                    }
-                    //assign the password
-                    var regex = new Regex("^[a-zA-Z0-9]*$");
-                    if (b.input.ToString().Length > TShock.Config.MinimumPasswordLength)
-                    {
-                        if (regex.IsMatch(password))
+                        var regex = new Regex("^[a-zA-Z0-9]*$");
+                        if (b.input.ToString().Length > TShock.Config.MinimumPasswordLength)
                         {
-                            TShock.Users.SetUserPassword(account, password);
-                            Console.WriteLine(account.Name + " has changed their password.");
+                            if (regex.IsMatch(password))
+                            {
+                                TShock.Users.AddUser(account);
+                                TShock.Users.SetUserPassword(account, password);
+                                Console.WriteLine(account.Name + " has changed their password.");
+                            }
+                            else
+                            {
+                                Console.WriteLine("Password contained special characters:  Must be alpha-numerical only.");
+                            }
                         }
-                        else
-                        {
-                            Console.WriteLine("Password was shit.  Please try alphanumerical only.");
-                        }
+                        
                     }
-                    // Mark the redemption complete.
-                    MarkRedemptionComplete(b._id);
+                    MarkStreamElementsRedemptionComplete(b);
                 }
                 else {
                     Console.WriteLine("Redemption list does not contain Join.");
@@ -392,16 +328,24 @@ namespace TestPlugin
             }
             
         }
-        public static byte[] JsonStringToByteArray(string jsonByteString)
+
+        void MarkStreamElementsRedemptionComplete(Models.Doc b)
         {
-            jsonByteString = jsonByteString.Substring(1, jsonByteString.Length - 2);
-            string[] arr = jsonByteString.Split(',');
-            byte[] bResult = new byte[arr.Length];
-            for (int i = 0; i < arr.Length; i++)
-            {
-                bResult[i] = byte.Parse(arr[i]);
-            }
-            return bResult;
+            string jwtToken = Models.StreamElements.jwtToken;
+            string channel = Models.StreamElements.channel;
+            Uri uri = new Uri("https://api.streamelements.com/kappa/v2/" + "store" + "/" + channel + "/" + "redemptions" + "/" + b._id);
+            HttpWebRequest request = (HttpWebRequest)WebRequest.CreateDefault(uri);
+            request.Headers["Authorization"] = ("Bearer " + jwtToken);
+            request.Method = "PUT";
+            byte[] array = {34,99,111,109,112,108,101,116,101,100,34,58,32,116,114,117,101 };
+
+            request.ContentType = "application/json; charset=utf-8";
+            request.Accept = "Accept=application/json";
+            Stream dataStream = request.GetRequestStream();
+            dataStream.Write(array, 0, array.Length);
+            dataStream.Close();
+            var response = request.GetResponse() as HttpWebResponse;
+            response.Close();
         }
     }
 }

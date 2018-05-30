@@ -6,11 +6,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("TestPlugin")]
+[assembly: AssemblyTitle("StreamAuth")]
 [assembly: AssemblyDescription("Description")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("FMG")]
-[assembly: AssemblyProduct("TestPlugin")]
+[assembly: AssemblyProduct("StreamAuth")]
 [assembly: AssemblyCopyright("FMG")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
