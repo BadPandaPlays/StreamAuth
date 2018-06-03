@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using TShockAPI;
 using Terraria;
@@ -9,7 +7,6 @@ using System.Net;
 using System.IO;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
-using Terraria.ID;
 using Newtonsoft.Json;
 using System.Text.RegularExpressions;
 
@@ -19,8 +16,8 @@ namespace StreamAuth
     public class StreamAuth : TerrariaPlugin
     {
         public override string Author => "OneBadPanda";
-        public override string Description => "Uses StreamElements Store to Create SSC Terraria Accounts";
-        public override string Name => "StreamStore";
+        public override string Description => "Connects StreamElements Points system to Terraria";
+        public override string Name => "StreamAuth";
         public override Version Version
         {
             get { return new Version(1, 0, 0, 0); }
@@ -35,6 +32,8 @@ namespace StreamAuth
         {
             Commands.ChatCommands.Add(new Command(Points, "points"));
             Commands.ChatCommands.Add(new Command(StreamElementsCheckJoinRedemptions, "join"));
+            Commands.ChatCommands.Add(new Command(VIPMe, "vipme"));
+            Commands.ChatCommands.Add(new Command(TrustMe, "trustme"));
             // All hooks provided by TSAPI are a part of the _ServerApi_ namespace.
             // This example will show you how to use the ServerChat hook which is 
             // fired whenever a client sends a message to the server.
@@ -42,31 +41,100 @@ namespace StreamAuth
             // is registering the hook and it's callback function (OnServerChat)
             // By passing a reference to the `OnServerChat` method you are able to
             // execute code whenever a message is sent to the server.
+            ServerApi.Hooks.ServerJoin.Register(this, OnServerJoin);
+
+            // TShockAPI.Hooks.PlayerHooks.PlayerCommand override /login <playername> to playername.tolower()
+
+
             // This is an example of subscribing to TShock's TogglePvP event.
             // This event is a part of the `GetDataHandlers` class.
             // All events located within this class are _packet implementation_ hooks.
             // These hooks will come in handy when dealing with packets
             // because they provide the packet's full structure, saving you from
             // reading the packet data yourself.
-        }
 
+        }
+        public void VIPMe(CommandArgs args)
+        {
+            //check group
+            if (args.Player.Group == TShock.Groups.GetGroupByName("TrustedPlayer"))
+            {
+                var points = StreamElementsPointsRequest(args);
+                //check points
+                if (points.points >= 200)
+                {
+
+                    Console.WriteLine(args.Player.Group.Name);
+                    var postpoints = StreamElementsSetPoints(args, -200);
+                    if (points.points > postpoints.newAmount)
+                    {
+                        TShock.Users.SetUserGroup(args.Player.User, "vip");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Previous: " + points.points + " Post: " + postpoints.newAmount);
+                    }
+                }
+            }
+            else
+            {
+                args.Player.SendInfoMessage("You must be in the TrustedPlayer group and have 200 shoots to redeem this");
+            }
+        }
+        public void TrustMe(CommandArgs args)
+        {
+
+            //check group
+            if (args.Player.Group.Name.Trim() == TShock.Config.DefaultGuestGroupName)
+            {
+                //check points
+                var points = StreamElementsPointsRequest(args);
+                if (points.points >= 200)
+                {
+                    var postpoints = StreamElementsSetPoints(args, -200);
+                    if (points.points > postpoints.newAmount)
+                    {
+                        TShock.Users.SetUserGroup(args.Player.User, "TrustedPlayer");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Something went wrong... " + args.Player.User.Name + "Previous: " + points.points + " Post: " + postpoints);
+                    }
+                }
+                else
+                {
+                    args.Player.SendInfoMessage("You must be in the Default group and have 200 shoots to redeem this");
+                }
+            }
+            else
+            {
+                args.Player.SendInfoMessage("You must be in the Default group and have 200 shoots to redeem this");
+            }
+                            
+        }
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
                 // As mentioned in the Hello, World! tutorial you should always 
                 // deregister your hooks during the disposal process.
+                ServerApi.Hooks.ServerJoin.Deregister(this, OnServerJoin);
             }
             base.Dispose(disposing);
         }
-
+        void OnServerJoin(JoinEventArgs args)
+        {
+            StreamElementsCheckJoinRedemptions(null);
+            Console.WriteLine("checking join redemptions");
+        }
         // This is the ServerChat's callback function; this function is called
         // whenever the ServerChat hook is fired, which is upon receiving a message
         // from the client.
         // This example acts as a debug and outputs the message to the console.
         public void Points(CommandArgs args)
         {
-            StreamElementsPointsRequest(args);
+            var userPoints = StreamElementsPointsRequest(args);
+            args.Player.SendMessage(msg: ("Account: " + userPoints.username + " Points: " + userPoints.points + " Rank: " + userPoints.rank), red: 255, green: 255, blue: 255);
         }
 
         public void StreamElementsCheckJoinRedemptions(CommandArgs args)
@@ -74,18 +142,258 @@ namespace StreamAuth
             int limit = 40;
             bool pending = true;
             string queryParams = "?limit=" + limit + "&pending=" + pending;
-            Models.RootObject list = GetStoreRedemptions(args, queryParams);
-            if (list.docs.Count == 0)
+            //grab list
+            Models.RootObject list = GetStoreRedemptions(queryParams, null);
+            if (list.docs.Count != 0)
             {
-                args.Player.SendInfoMessage("There were no join requests.");
+                //make account
+                //mark redemption complete 
+                CreateAccount(list);
             }
-            //create account
+            else
+            {}
+        }
+        
+        void MarkStreamElementsRedemptionComplete(Models.Doc Doc)
+        {
+            string jwtToken = Models.StreamElements.jwtToken;
+            string channel = Models.StreamElements.channel;
+            Uri uri = new Uri("https://api.streamelements.com/kappa/v2/" + "store" + "/" + channel + "/" + "redemptions" + "/" + Doc._id);
+            HttpWebRequest request = (HttpWebRequest)WebRequest.CreateDefault(uri);
+            request.Headers["Authorization"] = ("Bearer " + jwtToken);
+            request.Method = "PUT";
+            request.ContentType = "application/json; charset=utf-8";
+            request.Accept = "Accept=application/json";
+            string serializedObject = JsonConvert.SerializeObject(new
+            { completed = true });
+
+            request.SendChunked = false;
+            request.ContentLength = serializedObject.Length;
+            using (var writer = new StreamWriter(request.GetRequestStream()))
+            {
+                writer.Write(serializedObject);
+            }
+            var response = request.GetResponse() as HttpWebResponse;
+            response.Close();
+        }
+        public Models.RootObject GetStoreRedemptions(string queryParams, string itemID)
+        {
+            string jwtToken = Models.StreamElements.jwtToken;
+            string channel = Models.StreamElements.channel;
+            if (queryParams == null)
+            { queryParams = "?completed=true"; }
             else
             {
-                CreateAccount(list);
-            };
+                queryParams += "&completed=true";
+            }
+            Uri urlAddress = new Uri("https://api.streamelements.com/kappa/v2/" + "store" + "/" + channel + "/" + "redemptions" + "/" + itemID + queryParams);
+            HttpWebRequest request = (HttpWebRequest)WebRequest.CreateDefault(urlAddress);
+            request.Headers["Authorization"] = ("Bearer " + jwtToken);
+            ServicePointManager.ServerCertificateValidationCallback = MyRemoteCertificateValidationCallback;
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            if (response.StatusCode == HttpStatusCode.OK)
+            {
+                Models.RootObject data = ParseRootObjectFromStream(response.GetResponseStream());
+                response.Close();
+                return data;
+            }
+            else
+            {
+                Console.WriteLine("HttpStatusCode is not OK:" + response.StatusCode.ToString());
+                return null;
+            }
         }
+        
+        public Models.Points.UserPoints StreamElementsPointsRequest(CommandArgs args)
+        {
 
+            string user = string.Join(" ", args.Parameters);
+            if (string.IsNullOrWhiteSpace(user))
+            {
+                user = args.Player.User.Name;
+                if (string.IsNullOrWhiteSpace(user))
+                {
+                    return null;
+                }
+            }
+            string jwtToken = Models.StreamElements.jwtToken;
+            string channel = Models.StreamElements.channel;
+            Uri urlAddress = new Uri("https://api.streamelements.com/kappa/v2/" + "points" + "/" + channel + "/" + user);
+            HttpWebRequest request = (HttpWebRequest)WebRequest.CreateDefault(urlAddress);
+            request.Headers["Authorization"] = ("Bearer " + jwtToken);
+            ServicePointManager.ServerCertificateValidationCallback = MyRemoteCertificateValidationCallback;
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            if (response.StatusCode == HttpStatusCode.OK)
+            {
+                Stream receiveStream = response.GetResponseStream();
+                StreamReader readStream = null;
+                if (response.CharacterSet == null)
+                {
+                    readStream = new StreamReader(receiveStream);
+                }
+                else
+                {
+                    readStream = new StreamReader(receiveStream, Encoding.GetEncoding(response.CharacterSet));
+                }
+                // Send Message to player
+                Models.Points.UserPoints userPoints = ParsePointsObjectFromStream(response.GetResponseStream());
+                response.Close();
+                readStream.Close();
+                return userPoints;
+            }
+            return null;
+
+        }
+        public Models.Points.PutPointsResponse StreamElementsSetPoints(CommandArgs args, int points)
+        {
+
+            string user = string.Join(" ", args.Parameters);
+            if (string.IsNullOrWhiteSpace(user))
+            {
+                user = args.Player.User.Name;
+                if (string.IsNullOrWhiteSpace(user))
+                {
+                    return null;
+                }
+            }
+            string jwtToken = Models.StreamElements.jwtToken;
+            string channel = Models.StreamElements.channel;
+            Uri urlAddress = new Uri("https://api.streamelements.com/kappa/v2/" + "points" + "/" + channel + "/" + user + "/" + points);
+            HttpWebRequest request = (HttpWebRequest)WebRequest.CreateDefault(urlAddress);
+            request.Headers["Authorization"] = ("Bearer " + jwtToken);
+            request.Method = "PUT";
+            request.ContentType = "application/json; charset=utf-8";
+            request.Accept = "Accept=application/json";
+            request.SendChunked = false;
+            var response = request.GetResponse() as HttpWebResponse;
+            if (response.StatusCode == HttpStatusCode.OK)
+            {
+                Stream receiveStream = response.GetResponseStream();
+                StreamReader readStream = null;
+                if (response.CharacterSet == null)
+                {
+                    readStream = new StreamReader(receiveStream);
+                }
+                else
+                {
+                    readStream = new StreamReader(receiveStream, Encoding.GetEncoding(response.CharacterSet));
+                }
+                // Send Message to player
+                Models.Points.PutPointsResponse userPoints = ParsePutPointsObjectFromStream(response.GetResponseStream());
+                response.Close();
+                readStream.Close();
+                args.Player.SendMessage(msg: ("Account: " + userPoints.username + " Points: " + userPoints.newAmount), red: 255, green: 255, blue: 255);
+                return userPoints;
+            }
+            return null;
+        }
+        private bool MyRemoteCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            bool isOk = true;
+            // If there are errors in the certificate chain, look at each error to determine the cause.
+            if (sslPolicyErrors != SslPolicyErrors.None)
+            {
+                for (int i = 0; i < chain.ChainStatus.Length; i++)
+                {
+                    if (chain.ChainStatus[i].Status != X509ChainStatusFlags.RevocationStatusUnknown)
+                    {
+                        chain.ChainPolicy.RevocationFlag = X509RevocationFlag.EntireChain;
+                        chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
+                        chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 1, 0);
+                        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllFlags;
+                        bool chainIsValid = chain.Build((X509Certificate2)certificate);
+                        if (!chainIsValid)
+                        {
+                            isOk = false;
+                        }
+                    }
+                }
+            }
+            return isOk;
+        }
+        public void CreateAccount(Models.RootObject a)
+        {
+            for (int i = 0; i <= (a.docs.Count - 1); i++)
+            {
+                var Doc = a.docs[i];
+                if (Doc.item.ToString().Contains("Join"))
+                {
+                    var account = new TShockAPI.DB.User();
+                    account.Name = Doc.redeemer.username;
+                    account.Group = TShock.Config.DefaultGuestGroupName;
+                    string password = String.Join(" ", Doc.input.ToArray());
+                    //Check for account already
+                    if (TShock.Users.GetUserByName(account.Name) == null)
+                    {
+                        Console.WriteLine(account.Name + "User Does Not Exist");
+                        //make the account
+                        TShock.Users.AddUser(account);
+                    }
+                    //assign the password
+                    var regex = new Regex("^[a-zA-Z0-9]*$");
+                    if (password.Length > TShock.Config.MinimumPasswordLength)
+                    {
+                        if (regex.IsMatch(password))
+                        {
+                            TShock.Users.SetUserPassword(account, password);
+                            Console.WriteLine(account.Name + " has changed their password.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Password was shit.  Please try alphanumerical only.");
+                        }
+                    }
+                    // Mark the redemption complete.
+                    MarkStreamElementsRedemptionComplete(Doc);
+                }
+                else
+                {
+                    Console.WriteLine("Redemption list does not contain Join.");
+                }
+            }
+
+        }
+        public static Models.RootObject ParseRootObjectFromStream(Stream stream)
+        {
+            string value;
+            using (var reader = new StreamReader(stream, Encoding.UTF8))
+            {
+                value = reader.ReadToEnd();
+            }
+            Models.RootObject RedepmtionList = JsonConvert.DeserializeObject<Models.RootObject>(value);
+            return RedepmtionList;
+        }
+        public static Models.Doc ParseDocObjectFromStream(Stream stream)
+        {
+            string value;
+            using (var reader = new StreamReader(stream, Encoding.UTF8))
+            {
+                value = reader.ReadToEnd();
+            }
+            Models.Doc RedepmtionList = JsonConvert.DeserializeObject<Models.Doc>(value);
+            return RedepmtionList;
+        }
+        public static Models.Points.UserPoints ParsePointsObjectFromStream(Stream stream)
+        {
+            string value;
+            using (var reader = new StreamReader(stream, Encoding.UTF8))
+            {
+                value = reader.ReadToEnd();
+            }
+            Models.Points.UserPoints RedepmtionList = JsonConvert.DeserializeObject<Models.Points.UserPoints>(value);
+            return RedepmtionList;
+        }
+        public static Models.Points.PutPointsResponse ParsePutPointsObjectFromStream(Stream stream)
+        {
+            string value;
+            using (var reader = new StreamReader(stream, Encoding.UTF8))
+            {
+                value = reader.ReadToEnd();
+            }
+            Models.Points.PutPointsResponse RedepmtionList = JsonConvert.DeserializeObject<Models.Points.PutPointsResponse>(value);
+            return RedepmtionList;
+        }
+        /* UNDER CONSTRUCTION
         public static void BuyItem(CommandArgs args)
         {
 
@@ -188,164 +496,6 @@ namespace StreamAuth
             {
                 args.Player.SendErrorMessage("Your inventory seems full.");
             }
-        }
-        
-        public Models.RootObject GetStoreRedemptions(CommandArgs args, string queryParams)
-        {
-            string jwtToken = Models.StreamElements.jwtToken;
-            string channel = Models.StreamElements.channel;
-            string urlAddress = "https://api.streamelements.com/kappa/v2/" + "store" + "/" + channel + "/" + "redemptions" + "/" + queryParams;
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(urlAddress);
-            request.Headers["Authorization"] = ("Bearer " + jwtToken);
-
-            ServicePointManager.ServerCertificateValidationCallback = MyRemoteCertificateValidationCallback;
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-
-            if (response.StatusCode == HttpStatusCode.OK)
-            {
-                Models.RootObject data = ParseRootObjectFromStream(response.GetResponseStream());
-                response.Close();
-                return data;
-            }
-
-            else
-            {
-                Console.WriteLine("HttpStatusCode is not OK:" + response.StatusCode.ToString());
-                return null;
-            }
-
-        }
-
-        public void StreamElementsPointsRequest(CommandArgs args)
-        {
-
-            string user = string.Join(" ", args.Parameters);
-            if (string.IsNullOrWhiteSpace(user))
-            {
-                user = args.Player.Name;
-            }
-            string jwtToken = Models.StreamElements.jwtToken;
-            string channel = Models.StreamElements.channel;
-            string urlAddress = "https://api.streamelements.com/kappa/v2/" + "points" + "/" + channel + "/" + user;
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(urlAddress);
-            request.Headers["Authorization"] = ("Bearer " + jwtToken);
-            ServicePointManager.ServerCertificateValidationCallback = MyRemoteCertificateValidationCallback;
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            if (response.StatusCode == HttpStatusCode.OK)
-            {
-                Stream receiveStream = response.GetResponseStream();
-                var data = ParseObjectFromStream(receiveStream);
-                response.Close();
-                string message = data.username + " | Points: " + data.points + " | rank: " + data.rank;
-                args.Player.SendMessage(message, 255, 255, 255);
-            }
-        }
-
-        public static Models.RootObject ParseRootObjectFromStream(Stream stream)
-        {
-            string value;
-            using (var reader = new StreamReader(stream, Encoding.UTF8))
-            {
-                value = reader.ReadToEnd();
-            }
-            Models.RootObject RedepmtionList = JsonConvert.DeserializeObject<Models.RootObject>(value);
-            return RedepmtionList;
-        }
-
-        public static Models.Points.UserPoints ParseObjectFromStream(Stream stream)
-        {
-            string value;
-            using (var reader = new StreamReader(stream, Encoding.UTF8))
-            {
-                value = reader.ReadToEnd();
-            }
-            var PointsObject = JsonConvert.DeserializeObject<Models.Points.UserPoints>(value);
-            return PointsObject;
-        }
-
-        private bool MyRemoteCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
-        {
-            bool isOk = true;
-            // If there are errors in the certificate chain, look at each error to determine the cause.
-            if (sslPolicyErrors != SslPolicyErrors.None)
-            {
-                for (int i = 0; i < chain.ChainStatus.Length; i++)
-                {
-                    if (chain.ChainStatus[i].Status != X509ChainStatusFlags.RevocationStatusUnknown)
-                    {
-                        chain.ChainPolicy.RevocationFlag = X509RevocationFlag.EntireChain;
-                        chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
-                        chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 1, 0);
-                        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllFlags;
-                        bool chainIsValid = chain.Build((X509Certificate2)certificate);
-                        if (!chainIsValid)
-                        {
-                            isOk = false;
-                        }
-                    }
-                }
-            }
-            return isOk;
-        }
-
-        public void CreateAccount(Models.RootObject a)
-        {
-            for (int i = 0; i < (a.docs.Count - 1); i++)
-            {
-                var b = a.docs[i];
-                if (b.item.ToString().Contains("Join"))
-                {
-                    var account = new TShockAPI.DB.User();
-                    account.Name = b.redeemer.username;
-                    account.Group = TShock.Config.DefaultGuestGroupName;
-                    string password = String.Join(" ", b.input.ToArray());
-                    //Check for account already
-                    if (TShock.Users.GetUserByName(account.Name) == null)
-                    {
-                        Console.WriteLine(account.Name +"User Does Not Exist");
-                        //make the account
-                        var regex = new Regex("^[a-zA-Z0-9]*$");
-                        if (b.input.ToString().Length > TShock.Config.MinimumPasswordLength)
-                        {
-                            if (regex.IsMatch(password))
-                            {
-                                TShock.Users.AddUser(account);
-                                TShock.Users.SetUserPassword(account, password);
-                                Console.WriteLine(account.Name + " has changed their password.");
-                            }
-                            else
-                            {
-                                Console.WriteLine("Password contained special characters:  Must be alpha-numerical only.");
-                            }
-                        }
-                        
-                    }
-                    MarkStreamElementsRedemptionComplete(b);
-                }
-                else {
-                    Console.WriteLine("Redemption list does not contain Join.");
-                }
-            }
-            
-        }
-
-        void MarkStreamElementsRedemptionComplete(Models.Doc b)
-        {
-            string jwtToken = Models.StreamElements.jwtToken;
-            string channel = Models.StreamElements.channel;
-            Uri uri = new Uri("https://api.streamelements.com/kappa/v2/" + "store" + "/" + channel + "/" + "redemptions" + "/" + b._id);
-            HttpWebRequest request = (HttpWebRequest)WebRequest.CreateDefault(uri);
-            request.Headers["Authorization"] = ("Bearer " + jwtToken);
-            request.Method = "PUT";
-            byte[] array = {34,99,111,109,112,108,101,116,101,100,34,58,32,116,114,117,101 };
-
-            request.ContentType = "application/json; charset=utf-8";
-            request.Accept = "Accept=application/json";
-            Stream dataStream = request.GetRequestStream();
-            dataStream.Write(array, 0, array.Length);
-            dataStream.Close();
-            var response = request.GetResponse() as HttpWebResponse;
-            response.Close();
-        }
+        }*/
     }
 }

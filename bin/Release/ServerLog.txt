@@ -1,0 +1,4 @@
+[06/02/18 16:07:57] [Server API] Verbose: TerrariaApi - Server v2.1.0.0 started.
+[06/02/18 16:07:57] [Server API] Verbose: 	Command line: "C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\TerrariaServer.exe" C:\Users\Taylor\Desktop\TwitchStore\Tutorial\TestPlugin\bin\Release\StreamAuth.pdb
+[06/02/18 16:07:57] [Server API] Verbose: 	OS: Microsoft Windows NT 6.2.9200.0 (64bit: True)
+[06/02/18 16:07:57] [Server API] Verbose: 	Mono: False

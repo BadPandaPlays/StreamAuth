@@ -8,7 +8,7 @@ namespace StreamAuth.Models
 {
     class StreamElements
     {
-        public const string jwtToken = "JSON Web Token Goes Here";
-        public const string channel = "Channel ID goes here";
+        public const string jwtToken = "Token Goes Here";
+        public const string channel = "Channel Goes Here";
     }
 }

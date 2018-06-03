@@ -32,9 +32,5 @@ namespace StreamAuth.Models
         public int _total { get; set; }
         public List<Doc> docs { get; set; }
     }
-    [JsonObject]
-    public class complete
-    {
-        public bool Complete { get; set; }
-    }
 }
+
